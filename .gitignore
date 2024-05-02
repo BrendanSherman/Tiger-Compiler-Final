@@ -1,0 +1,7 @@
+*.swp
+*.o
+y.output
+parse
+*.tig
+.DS_Store
+*alias
