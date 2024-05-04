@@ -730,6 +730,10 @@ void I_trans_stm(I_Function func, TR_Stm stm) {
                     make_I_LabelOperand(I_new_label());
                 I_add_label(func, test_label_operand);
                 I_Operand test_result = I_trans_exp(func, stm->u.while_.test);
+                if (test_result->kind == I_IMM_OPRND) {
+                    test_result =
+                        I_move_to_temp_reg(func, test_result, stm->u.while_.test->size);
+                }
                 I_Inst inst = make_I_Inst(I_TEST, stm->u.while_.test->size);
                 inst->src = inst->dst = test_result;
                 I_add_inst(func, inst);
@@ -763,6 +767,10 @@ void I_trans_stm(I_Function func, TR_Stm stm) {
                             A_LT_OP
                             );
                 I_Operand test_result = I_trans_exp(func, test_exp);
+                if (test_result->kind == I_IMM_OPRND) {
+                    test_result =
+                        I_move_to_temp_reg(func, test_result, T_INT_SIZE);
+                }
                 I_Inst inst = make_I_Inst(I_TEST, T_INT_SIZE);
                 inst->src = inst->dst = test_result;
                 I_add_inst(func, inst);
