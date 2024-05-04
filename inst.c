@@ -564,6 +564,10 @@ I_Operand I_trans_exp(I_Function func, TR_Exp exp) {
         case TR_IF_ELSE_EXP:
             {
                 I_Operand test_result = I_trans_exp(func, exp->u.if_else.test);
+                if (test_result->kind == I_IMM_OPRND) {
+                    test_result =
+                        I_move_to_temp_reg(func, test_result, exp->u.if_else.test->size);
+                }
                 I_Inst inst = make_I_Inst(I_TEST, exp->u.if_else.test->size);
                 inst->src = inst->dst = test_result;
                 I_add_inst(func, inst);
@@ -675,6 +679,10 @@ void I_trans_stm(I_Function func, TR_Stm stm) {
         case TR_IF_STM:
             {
                 I_Operand test_result = I_trans_exp(func, stm->u.if_.test);
+                if (test_result->kind == I_IMM_OPRND) {
+                    test_result =
+                        I_move_to_temp_reg(func, test_result, stm->u.if_.test->size);
+                }
                 I_Inst inst = make_I_Inst(I_TEST, stm->u.if_.test->size);
                 inst->src = inst->dst = test_result;
                 I_add_inst(func, inst);
@@ -690,6 +698,10 @@ void I_trans_stm(I_Function func, TR_Stm stm) {
         case TR_IF_ELSE_STM:
             {
                 I_Operand test_result = I_trans_exp(func, stm->u.if_else.test);
+                if (test_result->kind == I_IMM_OPRND) {
+                    test_result =
+                        I_move_to_temp_reg(func, test_result, stm->u.if_else.test->size);
+                }
                 I_Inst inst = make_I_Inst(I_TEST, stm->u.if_else.test->size);
                 inst->src = inst->dst = test_result;
                 I_add_inst(func, inst);
