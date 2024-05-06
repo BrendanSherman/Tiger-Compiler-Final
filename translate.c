@@ -8,6 +8,10 @@
 #include "types.h"
 #include "util.h"
 
+/*
+ * Authors - Brendan Sherman, Julia Finn
+ */
+
 TR_StmList TR_loop_list;
 
 TR_TransExp make_TR_TransFunction(TR_Function function) {
