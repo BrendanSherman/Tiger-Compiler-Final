@@ -113,10 +113,16 @@ void R_release_named_reg(I_NamedReg reg) {
     R_in_use[reg] = false;
 }
 
-void R_replace_temp(I_Inst inst, I_NamedReg reg) {
-    if (inst->src && inst->src->kind == I_REG_OPRND && inst->src->u.reg->kind == I_TEMP) {
+void R_replace_temp(I_Inst inst, I_Temp temp, I_NamedReg reg) {
+    if (inst->src &&
+            inst->src->kind == I_REG_OPRND &&
+            inst->src->u.reg->kind == I_TEMP &&
+            inst->src->u.reg->u.temp == temp) {
         inst->src = make_I_RegOperand(make_I_NamedReg(reg));
-    } else if (inst->dst && inst->dst->kind == I_REG_OPRND && inst->dst->u.reg->kind == I_TEMP) {
+    } else if (inst->dst &&
+            inst->dst->kind == I_REG_OPRND &&
+            inst->dst->u.reg->kind == I_TEMP &&
+            inst->dst->u.reg->u.temp == temp) {
         inst->dst = make_I_RegOperand(make_I_NamedReg(reg));
     }
 }
@@ -184,21 +190,40 @@ void R_analyze_temp_usage(I_Function func) {
     }
 }
 
-void R_alloc_named_reg(I_Inst inst, I_Temp temp) {
+void R_alloc_named_reg(I_InstList insts, I_InstList pred, I_Temp temp) {
     if (R_reg_allocs[temp]) {
+        I_Inst inst = insts->head;
         if (R_reg_allocs[temp]->reg != RNONE) {
-            R_replace_temp(inst, R_reg_allocs[temp]->reg);
+            R_replace_temp(inst, temp, R_reg_allocs[temp]->reg);
             if (R_reg_allocs[temp]->last_use == inst->seq) {
-                R_release_named_reg(R_reg_allocs[temp]->reg);
+                I_NamedReg reg = R_reg_allocs[temp]->reg;
+                R_release_named_reg(reg);
+                if (R_is_callee_saved(reg)) {
+                    I_Inst pop_inst = make_I_Inst(I_POP, T_POINTER_SIZE);
+                    pop_inst->src = make_I_RegOperand(I_named_regs[reg]);
+                    I_InstList tail = insts->tail;
+                    insts->tail = make_I_InstList(pop_inst);
+                    insts->tail->tail = tail;
+                }
             }
         } else if (R_reg_allocs[temp]->first_use == inst->seq) {
-            R_reg_allocs[temp]->reg = R_take_named_reg(temp);
-            R_replace_temp(inst, R_reg_allocs[temp]->reg);
+            I_NamedReg named_reg = R_take_named_reg(temp);
+            if (R_is_callee_saved(named_reg)) {
+                assert(pred && pred->tail);
+                I_Inst push_inst = make_I_Inst(I_PUSH, T_POINTER_SIZE);
+                push_inst->src = make_I_RegOperand(I_named_regs[named_reg]);
+                I_InstList tail = pred->tail;
+                pred->tail = make_I_InstList(push_inst);
+                pred->tail->tail = tail;
+                R_pushed[named_reg] = true;
+            }
+            R_reg_allocs[temp]->reg = named_reg;
+            R_replace_temp(inst, temp, named_reg);
         }
     }
 }
 
-void R_alloc_named_reg_in_mem(I_Operand operand, I_Temp temp, int seq) {
+void R_alloc_named_reg_in_mem(I_Operand operand, I_InstList pred, I_Temp temp, int seq) {
     if (R_reg_allocs[temp]) {
         if (R_reg_allocs[temp]->reg != RNONE) {
             R_replace_temp_in_mem(operand, R_reg_allocs[temp]->reg, temp);
@@ -269,7 +294,8 @@ I_InstList R_insert_reg_pops(I_InstList insts, I_Function func) {
 }
 
 void R_allocate_named_regs(I_Function func) {
-    for (I_InstList insts = func->instructions; insts; insts = insts->tail) {
+    I_InstList pred = NULL;
+    for (I_InstList insts = func->instructions; insts; pred = insts, insts = insts->tail) {
         I_Inst inst = insts->head;
         if (inst->class == I_FCALL || inst->class == I_PCALL) {
             insts = R_insert_reg_pops(insts, func);
@@ -277,25 +303,25 @@ void R_allocate_named_regs(I_Function func) {
         I_Temp dst = R_get_temp_if_exists(inst->dst);
         I_Temp src = R_get_temp_if_exists(inst->src);
         if (dst >= 0) {
-            R_alloc_named_reg(inst, dst);
+            R_alloc_named_reg(insts, pred, dst);
         }
         if (src >= 0) {
-            R_alloc_named_reg(inst, src);
+            R_alloc_named_reg(insts, pred, src);
         }
         I_Temp index_temp;
         I_Temp base_temp = R_get_temps_from_mem(inst->src, &index_temp);
         if (base_temp >= 0) {
-            R_alloc_named_reg_in_mem(inst->src, base_temp, inst->seq);
+            R_alloc_named_reg_in_mem(inst->src, pred, base_temp, inst->seq);
         }
         if (index_temp >= 0) {
-            R_alloc_named_reg_in_mem(inst->src, index_temp, inst->seq);
+            R_alloc_named_reg_in_mem(inst->src, pred, index_temp, inst->seq);
         }
         base_temp = R_get_temps_from_mem(inst->dst, &index_temp);
         if (base_temp >= 0) {
-            R_alloc_named_reg_in_mem(inst->dst, base_temp, inst->seq);
+            R_alloc_named_reg_in_mem(inst->dst, pred, base_temp, inst->seq);
         }
         if (index_temp >= 0) {
-            R_alloc_named_reg_in_mem(inst->dst, index_temp, inst->seq);
+            R_alloc_named_reg_in_mem(inst->dst, pred, index_temp, inst->seq);
         }
         I_InstList tail = insts->tail;
         if (tail && (tail->head->class == I_FCALL || tail->head->class == I_PCALL)) {

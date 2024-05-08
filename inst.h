@@ -69,10 +69,10 @@ typedef enum {
     I_JMP,
     I_JE,
     I_JNE,
-    I_JLT,
+    I_JL,
     I_JLE,
     I_JGE,
-    I_JGT,
+    I_JG,
     I_JNZ,
     I_JZ,
     I_PUSH,
@@ -139,6 +139,7 @@ struct I_FunctionList_ {
     I_FunctionList tail;
 };
 
+extern I_Reg * I_named_regs;
 extern const int I_num_callee_saved_regs;
 
 I_Reg make_I_NamedReg(I_NamedReg reg);
