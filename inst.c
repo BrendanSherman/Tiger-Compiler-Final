@@ -11,7 +11,7 @@ void I_print_instruction(I_Inst inst, int seq);
 
 I_FunctionList functions;
 
-I_Reg * named_regs;
+I_Reg * I_named_regs;
 
 const I_NamedReg callee_saved_regs[] = { RBX, R12, R13, R14, R15 };
 
@@ -20,18 +20,18 @@ const int I_num_callee_saved_regs = sizeof(callee_saved_regs) / sizeof(callee_sa
 const I_InstClass jump_classes[] = {
     I_JE,
     I_JNE,
-    I_JLT,
+    I_JL,
     I_JLE,
     I_JGE,
-    I_JGT
+    I_JG
 };
 
 const I_InstClass jump_class_complements[] = {
     I_JNE,
     I_JE,
     I_JGE,
-    I_JGT,
-    I_JLT,
+    I_JG,
+    I_JL,
     I_JLE
 };
 
@@ -50,9 +50,9 @@ I_Reg make_I_TempReg(I_Temp temp) {
 }
 
 void I_init_named_regs() {
-    named_regs = calloc(R15 + 1, sizeof(I_Reg));
+    I_named_regs = calloc(R15 + 1, sizeof(I_Reg));
     for (I_NamedReg reg_name = RAX; reg_name <= R15; reg_name++) {
-        named_regs[reg_name] = make_I_NamedReg(reg_name);
+        I_named_regs[reg_name] = make_I_NamedReg(reg_name);
     }
 }
 
@@ -206,7 +206,7 @@ void I_add_inst(I_Function func, I_Inst inst) {
 void I_allocate(I_Function func, int size) {
     I_Inst inst = make_I_Inst(I_LOAD, T_INT_SIZE);
     inst->src = make_I_ImmOperand(size);
-    inst->dst = make_I_RegOperand(named_regs[RDI]);
+    inst->dst = make_I_RegOperand(I_named_regs[RDI]);
     I_add_inst(func, inst);
     inst = make_I_Inst(I_FCALL, T_POINTER_SIZE);
     inst->src = make_I_TargetOperand("malloc");
@@ -218,22 +218,22 @@ I_Operand I_trans_mem(I_Function func, TR_Exp mem_exp) {
     I_Inst inst = NULL;
     if (nestings) {
         inst = make_I_Inst(I_LOAD, T_POINTER_SIZE);
-        inst->src = make_I_MemOperand(make_I_OffsetMem(named_regs[RBP], 0));
-        inst->dst = make_I_RegOperand(named_regs[R15]);
+        inst->src = make_I_MemOperand(make_I_OffsetMem(I_named_regs[RBP], 0));
+        inst->dst = make_I_RegOperand(I_named_regs[R15]);
         I_add_inst(func, inst);
     }
     for (int level = 1; level < nestings; ++level) {
         inst = make_I_Inst(I_LOAD, T_POINTER_SIZE);
-        inst->src = make_I_MemOperand(make_I_OffsetMem(named_regs[R15], 0));
-        inst->dst = make_I_RegOperand(named_regs[R14]);
+        inst->src = make_I_MemOperand(make_I_OffsetMem(I_named_regs[R15], 0));
+        inst->dst = make_I_RegOperand(I_named_regs[R14]);
         I_add_inst(func, inst);
         inst = make_I_Inst(I_LOAD, T_POINTER_SIZE);
-        inst->src = make_I_RegOperand(named_regs[R14]);
-        inst->dst = make_I_RegOperand(named_regs[R15]);
+        inst->src = make_I_RegOperand(I_named_regs[R14]);
+        inst->dst = make_I_RegOperand(I_named_regs[R15]);
         I_add_inst(func, inst);
     }
     I_Mem simple_mem =
-        make_I_MemFromIR(mem_exp, nestings ? named_regs[R15] : named_regs[RBP]);
+        make_I_MemFromIR(mem_exp, nestings ? I_named_regs[R15] : I_named_regs[RBP]);
     return make_I_MemOperand(simple_mem);
 }
 
@@ -273,7 +273,7 @@ I_Operand I_move_to_named_reg(
     return I_move_to_register(
             func,
             in_operand,
-            named_regs[reg_name],
+            I_named_regs[reg_name],
             size
             );
 }
@@ -384,13 +384,17 @@ I_Operand I_trans_exp(I_Function func, TR_Exp exp) {
                 I_allocate(func, exp->size);
                 int offset = 0;
                 for (TR_ExpList exps = exp->u.record; exps; exps = exps->tail) {
+                    I_Operand initializer = I_trans_exp(func, exps->head);
+                    if (initializer->kind == I_MEM_OPRND) {
+                        initializer = I_move_to_temp_reg(func, initializer, exps->head->size);
+                    }
                     I_Inst inst = make_I_Inst(I_STORE, exps->head->size);
-                    inst->src = I_trans_exp(func, exps->head);
-                    inst->dst = make_I_MemOperand(make_I_OffsetMem(named_regs[RAX], offset));
+                    inst->src = initializer;
+                    inst->dst = make_I_MemOperand(make_I_OffsetMem(I_named_regs[RAX], offset));
                     I_add_inst(func, inst);
                     offset += exps->head->size;
                 }
-                return make_I_RegOperand(named_regs[RAX]);
+                return make_I_RegOperand(I_named_regs[RAX]);
             }
         case TR_ARRAY_EXP:
             {
@@ -428,7 +432,7 @@ I_Operand I_trans_exp(I_Function func, TR_Exp exp) {
                 inst->dst =
                     make_I_MemOperand(
                             make_I_IndexedMem(
-                                named_regs[RAX],
+                                I_named_regs[RAX],
                                 iteration_operand->u.reg,
                                 element_size
                                 )
@@ -444,7 +448,7 @@ I_Operand I_trans_exp(I_Function func, TR_Exp exp) {
                 inst = make_I_Inst(I_JMP, 0);
                 inst->src = test_label_operand;
                 I_add_label(func, exit_label_operand);
-                return make_I_RegOperand(named_regs[RAX]);
+                return make_I_RegOperand(I_named_regs[RAX]);
             }
         case TR_ARITH_OP_EXP:
             {
@@ -506,7 +510,7 @@ I_Operand I_trans_exp(I_Function func, TR_Exp exp) {
             {
                 I_Inst inst = make_I_Inst(I_LOAD, T_INT_SIZE);
                 inst->src = I_trans_exp(func, exp->u.div.left);
-                I_Operand dividend_operand = make_I_RegOperand(named_regs[RAX]);
+                I_Operand dividend_operand = make_I_RegOperand(I_named_regs[RAX]);
                 inst->dst = dividend_operand;
                 I_add_inst(func, inst);
                 I_Operand divisor_operand = I_trans_exp(func, exp->u.div.right);
@@ -564,7 +568,7 @@ I_Operand I_trans_exp(I_Function func, TR_Exp exp) {
         case TR_IF_ELSE_EXP:
             {
                 I_Operand test_result = I_trans_exp(func, exp->u.if_else.test);
-                if (test_result->kind == I_IMM_OPRND) {
+                if (test_result->kind != I_REG_OPRND) {
                     test_result =
                         I_move_to_temp_reg(func, test_result, exp->u.if_else.test->size);
                 }
@@ -610,17 +614,18 @@ I_Operand I_trans_exp(I_Function func, TR_Exp exp) {
                 for (TR_ExpList args = exp->u.fcall.args; args; args = args->tail, ++i) {
                     I_Inst inst = make_I_Inst(I_LOAD, args->head->size);
                     inst->src = I_trans_exp(func, args->head);
-                    inst->dst = make_I_RegOperand(named_regs[arg_regs[i]]);
+                    inst->dst = make_I_RegOperand(I_named_regs[arg_regs[i]]);
                     I_add_inst(func, inst);
                 }
-                I_Inst inst = make_I_Inst(I_FCALL, T_POINTER_SIZE);
+                I_Inst inst = make_I_Inst(I_FCALL, 0);
                 char * name = S_name(exp->u.fcall.name);
                 if (!strcmp(name, "getchar")) {
                     name = "getchar_";
                 }
                 inst->src = make_I_TargetOperand(name);
                 I_add_inst(func, inst);
-                return make_I_RegOperand(named_regs[RAX]);
+                I_Operand ret_operand = make_I_RegOperand(I_named_regs[RAX]);
+                return I_move_to_temp_reg(func, ret_operand, exp->size);
             }
         case TR_SEQ_EXP:
             {
@@ -660,7 +665,7 @@ void I_trans_stm(I_Function func, TR_Stm stm) {
                 for (TR_ExpList args = stm->u.pcall.args; args; args = args->tail, ++i) {
                     I_Inst inst = make_I_Inst(I_LOAD, args->head->size);
                     inst->src = I_trans_exp(func, args->head);
-                    inst->dst = make_I_RegOperand(named_regs[arg_regs[i]]);
+                    inst->dst = make_I_RegOperand(I_named_regs[arg_regs[i]]);
                     I_add_inst(func, inst);
                 }
                 I_Inst inst = make_I_Inst(I_PCALL, T_POINTER_SIZE);
@@ -874,26 +879,20 @@ I_FunctionList I_add_function(I_FunctionList funcs, I_Function func) {
 
 void I_add_prologue(TR_Function func, I_Function trans_func) {
     I_Inst inst = make_I_Inst(I_PUSH, T_POINTER_SIZE);
-    inst->src = make_I_RegOperand(named_regs[RBP]);
+    inst->src = make_I_RegOperand(I_named_regs[RBP]);
     I_add_inst(trans_func, inst);
-    for (int i = 0; i < I_num_callee_saved_regs; ++i) {
-        inst = make_I_Inst(I_PUSH, T_POINTER_SIZE);
-        inst->src = make_I_RegOperand(named_regs[callee_saved_regs[i]]);
-        I_add_inst(trans_func, inst);
-    }
     inst = make_I_Inst(I_LOAD, T_POINTER_SIZE);
-    inst->src = make_I_RegOperand(named_regs[RSP]);
-    inst->dst = make_I_RegOperand(named_regs[RBP]);
+    inst->src = make_I_RegOperand(I_named_regs[RSP]);
+    inst->dst = make_I_RegOperand(I_named_regs[RBP]);
     I_add_inst(trans_func, inst);
-    trans_func->effective_frame_size = trans_func->frame_size +
-        I_num_callee_saved_regs * T_POINTER_SIZE;
+    trans_func->effective_frame_size = trans_func->frame_size;
     int remainder = trans_func->effective_frame_size % F_STACK_ALIGNMENT;
     trans_func->effective_frame_size += remainder ? F_STACK_ALIGNMENT - remainder : 0;
     trans_func->aligned_frame_size =
-        trans_func->effective_frame_size - I_num_callee_saved_regs * T_POINTER_SIZE;
+        trans_func->effective_frame_size;
     inst = make_I_Inst(I_SUB, T_POINTER_SIZE);
     inst->src = make_I_ImmOperand(trans_func->aligned_frame_size);
-    inst->dst = make_I_RegOperand(named_regs[RSP]);
+    inst->dst = make_I_RegOperand(I_named_regs[RSP]);
     I_add_inst(trans_func, inst);
 
 }
@@ -901,15 +900,10 @@ void I_add_prologue(TR_Function func, I_Function trans_func) {
 void I_add_epilogue(TR_Function func, I_Function trans_func) {
     I_Inst inst = make_I_Inst(I_ADD, T_POINTER_SIZE);
     inst->src = make_I_ImmOperand(trans_func->aligned_frame_size);
-    inst->dst = make_I_RegOperand(named_regs[RSP]);
+    inst->dst = make_I_RegOperand(I_named_regs[RSP]);
     I_add_inst(trans_func, inst);
-    for (int i = I_num_callee_saved_regs - 1; i >= 0; --i) {
-        inst = make_I_Inst(I_POP, T_POINTER_SIZE);
-        inst->src = make_I_RegOperand(named_regs[callee_saved_regs[i]]);
-        I_add_inst(trans_func, inst);
-    }
     inst = make_I_Inst(I_POP, T_POINTER_SIZE);
-    inst->src = make_I_RegOperand(named_regs[RBP]);
+    inst->src = make_I_RegOperand(I_named_regs[RBP]);
     I_add_inst(trans_func, inst);
     inst = make_I_Inst(I_RET, T_POINTER_SIZE);
     I_add_inst(trans_func, inst);
@@ -924,8 +918,8 @@ void I_trans_params(TR_Function func, I_Function trans_func) {
         F_Var param = params->head;
         offset += T_size(param->type);
         I_Inst inst = make_I_Inst(I_STORE, T_size(param->type));
-        inst->src = make_I_RegOperand(named_regs[param_regs[i]]);
-        inst->dst = make_I_MemOperand(make_I_OffsetMem(named_regs[RBP], -offset));
+        inst->src = make_I_RegOperand(I_named_regs[param_regs[i]]);
+        inst->dst = make_I_MemOperand(make_I_OffsetMem(I_named_regs[RBP], -offset));
         I_add_inst(trans_func, inst);
     }
 }
@@ -1079,10 +1073,10 @@ void I_print_instruction(I_Inst inst, int seq) {
         "jmp",
         "je",
         "jne",
-      "jlt",
+      "jl",
         "jle",
         "jge",
-        "jgt",
+        "jg",
         "jnz",
         "jz",
         "push",
