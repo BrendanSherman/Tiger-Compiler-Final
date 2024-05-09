@@ -13,12 +13,17 @@ let
         let
             var i := 0
             function skipto() =
-                while buffer = " " | buffer = "\n"
-                    do buffer := getchar()
+                while buffer = "" | buffer = " " | buffer = "\n" do (
+                    print("Current buffer before getchar: '"); print(buffer); print("'\n");
+                    buffer := getchar();
+                    print("Buffer updated by getchar: '"); print(buffer); print("'\n");
+                )
         in
+            print("?");
             skipto();
             while isdigit(buffer)
                 do (
+                    print(buffer);
                     i := i * 10 + ord(buffer) - ord("0");
                     buffer := getchar()
                 );
@@ -55,7 +60,7 @@ let
             while 1 do (
                 print("Enter a number (or a non-numeric character to quit): ");
                 input := readint();
-                if isdigit(buffer) then (
+                if buffer <> " " & isdigit(buffer) then (
                     printint(input);
                     print("! = ");
                     printint(factorial(input));
