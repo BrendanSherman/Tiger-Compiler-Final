@@ -40,6 +40,14 @@ S_Table E_base_tenv() {
 
 S_Table E_base_venv() {
     S_Table value_table = S_empty();
+    // Added strcmp function for string comparison
+    S_enter(
+            value_table,
+            make_S_Symbol("strcmp"),
+            make_E_FunEntry(
+                make_T_TypeList(make_T_String(), make_T_TypeList(make_T_String(), NULL)),
+                make_T_Int())              
+           );
     S_enter(
             value_table,
             make_S_Symbol("print"),

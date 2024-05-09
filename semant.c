@@ -481,17 +481,23 @@ SEM_ExpType SEM_trans_exp(S_Table venv, S_Table tenv, TR_Function func, A_Exp ex
                     return make_SEM_ExpType(NULL, make_T_Int());
                 }
                 if (exp->u.op.oper == A_EQ_OP || exp->u.op.oper == A_NEQ_OP) {
+                    // Ensure types are the same (str/str or int/int)
                     if (!SEM_types_agree(left->type, right->type)) {
                         EM_error(exp->pos, "comparison operand types differ\n");
                     }
-                } else {
-                    if (left->type->kind != T_INT) {
-                        EM_error(exp->u.op.left->pos, "integer required in binary operation");
-                    } 
-                    if (right->type->kind != T_INT) {
-                        EM_error(exp->u.op.right->pos, "integer required in binary operation");
-                    } 
-                }
+                    // If operands are strings, begin special handling of string comparison  
+                    if(left->type->kind == T_STRING) {
+                        // create function call for strcmp
+                        TR_ExpList strings = make_TR_ExpList(left->exp->u.exp, make_TR_ExpList(right->exp->u.exp, NULL));
+                        TR_Exp strcmp_exp = make_TR_FCallExp(venv, make_S_Symbol("strcmp"), strings);
+                        
+                        // create TR_RelOpExp with strcmp expression, 0
+                        TR_Exp tr_rel_exp = make_TR_RelOpExp(strcmp_exp, make_TR_NumExp(0), exp->u.op.oper);
+                        TR_TransExp tr = make_TR_TransExp(tr_rel_exp);
+                        return make_SEM_ExpType(tr, make_T_Int());
+                    }
+                } 
+                // Otherwise, handle comparison as normal
                 TR_Exp tr_op_exp = NULL;
                 switch (exp->u.op.oper) {
                     case A_PLUS_OP:
