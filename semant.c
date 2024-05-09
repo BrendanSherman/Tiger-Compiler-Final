@@ -497,7 +497,7 @@ SEM_ExpType SEM_trans_exp(S_Table venv, S_Table tenv, TR_Function func, A_Exp ex
                         return make_SEM_ExpType(tr, make_T_Int());
                     }
                 } 
-                // Otherwise, handle comparison as normal
+                // Otherwise, handle operator comparison as before 
                 TR_Exp tr_op_exp = NULL;
                 switch (exp->u.op.oper) {
                     case A_PLUS_OP:
