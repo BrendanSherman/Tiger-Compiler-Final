@@ -1,22 +1,25 @@
 /* factorial.tig: Print input number's factorial until non-numeric input detected */
 /* Authors: Brendan Sherman (shermabk@bc.edu), Julia Finn (finnju@bc.edu) */
 
-/* Use getchar() for each digit in input to sum the decimal digit values */
-function parseNum(): (int, string) = 
+let
+
+/* Checks whether input character is numeric */ 
+function isNumeric(c : string) : int =
+    (ord(c) >= ord("0") & ord(c) <= ord("9"))
+
+/* Use getchar() on each digit in input to sum the decimal digit values */
+function parseNum(): int = 
     let
         var in_number := 0
-        var digit := getchar()
-        var is_numeric := 1
+        var char := getchar()
     in  
         /* If a digit is detected, enter loop to parse value */
-        while ord(digit) >= ord('0') & ord(digit) <= ord('9') do
+        while isNumeric(char) do
         (
-            in_number := in_number * 10 + ord(digit) - ord('0');
-            ch := getchar()
+            in_number := in_number * 10 + ord(char) - ord("0");
+            char := getchar()
         );
-        /* If nonnumeric, set flag value to exit program */
-        if ord(ch) < ord('0') | ord(ch) > ord('9') then is_numeric := 0;
-        (in_number, is_numeric)     
+        in_number  
     end
 
 /* Recursively calculates factorial (with base case 0) for given n */
@@ -24,35 +27,42 @@ function factorial(n: int) : int =
     if n = 0 then 1
     else n * factorial(n - 1)
 
+function remainder (a: int, b: int) : int = 
+    let 
+        var quotient := 0
+    in
+        quotient := a / b; 
+        a - (quotient * b) /* compute remainder of division */ 
+    end
+
 /* Recursively print digits of integer input from left to right */
 function printnum(num : int) =
     /* Base case for 'ones' place */
     if num < 10 then
-            print(chr(num + ord('0')))
-    /* Recursively call printnum until 'ones' place reached, then print remaining digits */
+            print(chr(ord("0") + num))
+    /* Recursively call printnum until rightmost digit reached, then print remaining digits */
     else
     (
-        printnum(num / 10);
-        print(chr((num mod 10) + ord('0')))
+        printnum(num / 10); /* Handle next digit to right if it exists */
+        print(chr(ord("0") + remainder(num, 10))) /* Print next-to-last digit */ 
     )
-
 
 function main() = 
     let 
         var input_num := 0
-        var is_numeric := false 
+        var char := "0" 
     in
-        print("Factorial Program\n")
-        print("Enter a number (or 'q' to quit at any time): ")
-        (input_num, is_numeric) := parseNum();
-        while is_numeric do
+        print("Factorial Program\n");
+        print("Enter a number: ");
+        input_num := parseNum(); /* Read user-inputted number */
+        while isNumeric(char) do
         (
-            printnum(input_num)
-            print("! =")
-            printnum(factorial(input_num))
-            (input_num, is_numeric) := readint();
+            printnum(input_num);
+            print("! = ");
+            printnum(factorial(input_num));
+            char := getchar();
         );
-        print("Non-numeric input detected.\n")
+        print("Non-numeric input detected.\n");
     end
 
 in
