@@ -1,76 +1,53 @@
 /* factorial.tig: Print input number's factorial until non-numeric input detected */
-/* Authors: Brendan Sherman (shermabk@bc.edu), Julia Finn (finnju@bc.edu) */
+/* Authors: Brendan Sherman - shermabk@bc.edu, Julia Finn - finnju@bc.edu */
 
 let
-    var buffer := getchar()
-
-    /* Taken from merge.tig, checks whether character is digit */
-    function isdigit(s: string): int =
-        ord(s) >= ord("0") & ord(s) <= ord("9")
-
-    /* Taken from merge.tig, parses numeric value from string of consecutive characters */
-    function readint(): int =
+    /* Borrowed from merge.tig, returns 1 if c is in the range of digits 0-9 */
+    function isdigit(c : string) : int =
+        ord(c) >= ord("0") & ord(c) <= ord("9")
+    
+    /* Using getchar on consecutive digits, compute their integer value */
+    function getint() : int =
         let
-            var i := 0
-            function skipto() =
-                while buffer = "" | buffer = " " | buffer = "\n" do (
-                    print("Current buffer before getchar: '"); print(buffer); print("'\n");
-                    buffer := getchar();
-                    print("Buffer updated by getchar: '"); print(buffer); print("'\n");
-                )
+            var num := 0
+            var c := getchar()
         in
-            print("?");
-            skipto();
-            while isdigit(buffer)
-                do (
-                    print(buffer);
-                    i := i * 10 + ord(buffer) - ord("0");
-                    buffer := getchar()
-                );
-            i
+            while isdigit(c) do (
+                num := num * 10 + ord(c) - ord("0");
+                c := getchar()
+            );
+            num
         end
 
-    /* Recursively calculates factorial of input number with base case 0 */
-    function factorial(n: int): int =
-        if n = 0 then 1 else n * factorial(n - 1)
+    /* Recursively compute remainders to print digits of n from left to right */
+    function printint(n : int) =
+        if n > 0 then (
+            if n / 10 > 0 then printint(n / 10);
+            print(chr(n - n / 10 * 10 + ord("0")))
+        ) 
 
-    /* Prints numeric value of integer input */
-    function printint(i: int) =
-        let
-            function f(i: int) =
-                if i > 0 then (
-                    f(i / 10);
-                    print(chr(i - i / 10 * 10 + ord("0")))
-                )
-        in
-            if i < 0 then (
-                print("-");
-                f(-i)
-            )
-            else if i > 0 then f(i)
-            else print("0")
-        end
+    /* Recursively compute factorial for given int with base case 0 */
+    function fact(n : int) : int =
+        if n = 0 then 1 else n * fact(n-1)
 
-    /* Program loop */
-    function main_loop() =
+    /* Execution loop, seperated to enable initial print() calls */
+    function main_loop() = 
         let
-            var input := 0
+            var n := getint()
         in
-            print("Factorial Program\n");
-            while 1 do (
-                print("Enter a number (or a non-numeric character to quit): ");
-                input := readint();
-                if buffer <> " " & isdigit(buffer) then (
-                    printint(input);
-                    print("! = ");
-                    printint(factorial(input));
-                    print("\n")
-                ) else (
-                    print("Non-numeric input detected. Exiting...\n");
-                    break
-                )
+            while n > 0 do (
+                printint(n);
+                print("! = ");
+                printint(fact(n));
+                print("\n");
+                n := getint()
             )
         end
 in
+    /* entry point */ 
+    print("Factorial Program\n");
+    print("Enter a Positive Integer.\n");
+    print("Enter non-numeric text (or nothing) to quit.\n");
     main_loop()
 end
+
