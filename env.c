@@ -92,7 +92,7 @@ S_Table E_base_venv() {
                             )
                         )
                     ),
-                make_T_Int()
+                make_T_String()
                 )
            );
     S_enter(

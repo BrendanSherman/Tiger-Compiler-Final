@@ -205,6 +205,7 @@ SEM_ExpType SEM_trans_exp(S_Table venv, S_Table tenv, TR_Function func, A_Exp ex
         case A_NIL_EXP:
             {
                 TR_Exp tr_num_exp = make_TR_NumExp(0);
+                tr_num_exp->size = T_POINTER_SIZE;
                 TR_TransExp tr = make_TR_TransExp(tr_num_exp);
                 return make_SEM_ExpType(tr, make_T_Nil());
             }
@@ -272,6 +273,7 @@ SEM_ExpType SEM_trans_exp(S_Table venv, S_Table tenv, TR_Function func, A_Exp ex
                         efields && fields;
                         efields = efields->tail, fields = fields->tail
                         ) {
+                    size += T_size(fields->head->type);
                     if (efields->head->name != fields->head->name) {
                         EM_error(exp->pos, "unexpected field name: %s -- expecting %s\n",
                                 S_name(efields->head->name), S_name(fields->head->name));
@@ -282,7 +284,6 @@ SEM_ExpType SEM_trans_exp(S_Table venv, S_Table tenv, TR_Function func, A_Exp ex
                                 S_name(efields->head->name));
                     }
                     tr_fields = TR_add_exp(tr_fields, efield_exp_type->exp->u.exp);
-                    size += T_size(efield_exp_type->type);
                 }
                 if (fields) {
                     EM_error(exp->pos, "too few fields — missing field %s\n", fields->head->name);
@@ -563,19 +564,22 @@ void SEM_trans_dec(S_Table venv, S_Table tenv, TR_Function func, A_Dec dec) {
                     init_exp_type->type = make_T_Int();
                 }
                 T_Type init_type = init_exp_type->type;
+                T_Type declared_type = NULL;
                 if (dec->u.var.type) {
-                    T_Type declared_type = S_look(tenv, dec->u.var.type);
+                    declared_type = S_look(tenv, dec->u.var.type);
                     if (!SEM_types_agree(declared_type, init_type)) {
                         EM_error(dec->pos, "declared type does not match that of initializer");
                         init_type = declared_type;
                     } 
                 } else if (init_type->kind == T_NIL) {
                     EM_error(dec->u.var.init->pos, "nil cannot initialize a non-record variable");
-                    init_type = make_T_Int();
+                    declared_type = init_type = make_T_Int();
+                } else {
+                    declared_type = init_type;
                 }
-                TR_add_var(func, dec->u.var.var, init_type);
+                TR_add_var(func, dec->u.var.var, declared_type);
                 S_enter(venv, dec->u.var.var,
-                        make_E_VarEntry(init_type, func->frame->nesting_level, func->frame->end)); 
+                        make_E_VarEntry(declared_type, func->frame->nesting_level, func->frame->end)); 
                 TR_Exp tr_var_exp = make_TR_MemExp(venv, dec->u.var.var); 
                 if (!init_exp_type->exp) {
                     EM_error(dec->u.var.init->pos, "missing initializer expression");
